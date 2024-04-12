@@ -1,10 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
 import './chat.css';
 import EmojiPicker from 'emoji-picker-react';
+import { arrayUnion, doc, onSnapshot, updateDoc } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
+import { useChatStore } from '../../lib/chatStore';
+import { useUserStore } from '../../lib/userStore';
 
 const Chat = () => {
   const [openEmoji, setOpenEmoji] = useState(false);
   const [text, setText] = useState('');
+  const [chat, setChat] = useState();
+
+  const { chatId } = useChatStore();
+  const { currentUser } = useUserStore();
 
   const endRef = useRef(null);
 
@@ -12,9 +20,37 @@ const Chat = () => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
 
+  useEffect(() => {
+    const unSub = onSnapshot(doc(db, 'chats', chatId), (res) => {
+      setChat(res.data());
+    });
+
+    return () => {
+      unSub();
+    };
+  }, [chatId]);
+
+  console.log(chat);
+
   const handleEmoji = (e) => {
     setText((prev) => prev + e.emoji);
     setOpenEmoji(false);
+  };
+
+  const handleSend = async () => {
+    if (text === '') return;
+
+    try {
+      await updateDoc(doc(db, 'chats', chatId), {
+        messages: arrayUnion({
+          senderId: currentUser.id,
+          text,
+          createdAt: new Date(),
+        }),
+      });
+    } catch (error) {
+      console.log(error);
+    }
   };
 
   return (
@@ -34,73 +70,15 @@ const Chat = () => {
         </div>
       </div>
       <div className='center no-scrollbar'>
-        <div className='message'>
-          <img src='/avatar.png' alt='' />
-          <div className='texts'>
-            <p>
-              Dolor nulla non esse ullamco. Mollit voluptate reprehenderit in
-              duis pariatur eu tempor reprehenderit voluptate consequat commodo
-              dolor. Dolor id fugiat ullamco qui excepteur incididunt.
-            </p>
-            <span>1 min ago</span>
+        {chat?.messages?.map((message) => (
+          <div key={message.createdAt} className='message own'>
+            <div className='texts'>
+              {message.img && <img src={message.img} alt='' />}
+              <p>{message.text}</p>
+              {/* <span>{message.createdAt}</span> */}
+            </div>
           </div>
-        </div>
-        <div className='message'>
-          <img src='/avatar.png' alt='' />
-          <div className='texts'>
-            <p>
-              Dolor nulla non esse ullamco. Mollit voluptate reprehenderit in
-              duis pariatur eu tempor reprehenderit voluptate consequat commodo
-              dolor. Dolor id fugiat ullamco qui excepteur incididunt.
-            </p>
-            <span>1 min ago</span>
-          </div>
-        </div>
-        <div className='message own'>
-          <div className='texts'>
-            <p>
-              Dolor nulla non esse ullamco. Mollit voluptate reprehenderit in
-              duis pariatur eu tempor reprehenderit voluptate consequat commodo
-              dolor. Dolor id fugiat ullamco qui excepteur incididunt.
-            </p>
-            <span>1 min ago</span>
-          </div>
-        </div>
-        <div className='message own'>
-          <div className='texts'>
-            <p>
-              Dolor nulla non esse ullamco. Mollit voluptate reprehenderit in
-              duis pariatur eu tempor reprehenderit voluptate consequat commodo
-              dolor. Dolor id fugiat ullamco qui excepteur incididunt.
-            </p>
-            <span>1 min ago</span>
-          </div>
-        </div>
-        <div className='message'>
-          <img src='/avatar.png' alt='' />
-          <div className='texts'>
-            <p>
-              Dolor nulla non esse ullamco. Mollit voluptate reprehenderit in
-              duis pariatur eu tempor reprehenderit voluptate consequat commodo
-              dolor. Dolor id fugiat ullamco qui excepteur incididunt.
-            </p>
-            <span>1 min ago</span>
-          </div>
-        </div>
-        <div className='message own'>
-          <div className='texts'>
-            <img
-              src='https://images.pexels.com/photos/19961874/pexels-photo-19961874/free-photo-of-isik-parlak-acik-hafif.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1'
-              alt=''
-            />
-            <p>
-              Dolor nulla non esse ullamco. Mollit voluptate reprehenderit in
-              duis pariatur eu tempor reprehenderit voluptate consequat commodo
-              dolor. Dolor id fugiat ullamco qui excepteur incididunt.
-            </p>
-            <span>1 min ago</span>
-          </div>
-        </div>
+        ))}
         <div ref={endRef}></div>
       </div>
       <div className='bottom'>
@@ -125,7 +103,9 @@ const Chat = () => {
             <EmojiPicker open={openEmoji} onEmojiClick={handleEmoji} />
           </div>
         </div>
-        <button className='sendButton'>Send</button>
+        <button className='sendButton' onClick={handleSend}>
+          Send
+        </button>
       </div>
     </section>
   );
